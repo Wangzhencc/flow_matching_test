@@ -58,6 +58,7 @@ def get_batch_interpolation_data(x_1, x_0):
     # x0 = x_0[torch.randint(low=0, high=num_samples, size=(bsz,))]
     x0 = x_0[idx]
     xt, vt = OptimalTransportFM(z, x0, tp, sigma)
+    # xt, vt = OptimalTransportVFS(z, x0, tp, sigma)
     return xt, vt, tp
 
 

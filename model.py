@@ -68,32 +68,36 @@ class CNF_(nn.Module):
 
     def forward(self, t, states, require_div=True):
         z = states[0]
-        
         bsz = z.shape[0]
         data_shape = z.shape
         t = t.reshape(-1)
-
         with torch.set_grad_enabled(True):
-            
-            if len(t) == 1:
-                t = t.view(-1).repeat(bsz)
-            elif len(t) !=  bsz:
-                print(len(t), z.shape)
-                print("time t should either be of same size as the bsz, or as one single value")
-                raise ValueError
+
+            self.check_t(t, bsz)
             z = z.reshape(bsz, -1)
             z.requires_grad_(True)
+
             v = torch.cat((z.reshape(bsz, -1), t.unsqueeze(1)), dim=1)
-            
             for l in self.layers:
-        
                 v = l(v)
-            
+
             if require_div:
                 divv = -trace_df_dz(f=v, z=z)
                 return (v.reshape(data_shape), divv.reshape(bsz, 1))
             else:
                 return (v.reshape(data_shape),)
+
+    def check_t(self, t, bsz):
+        if len(t) == 1:
+            t = t.view(-1).repeat(bsz)
+            return t
+        elif len(t) !=  bsz:
+            print(len(t), z.shape)
+            print("time t should either be of same size as the bsz, or as one single value")
+            raise ValueError
+        else:
+            return t
+
 
 class CNF(nn.Module):
     """Adapted from the NumPy implementation at:
@@ -128,6 +132,7 @@ class CNF(nn.Module):
 
         return (dz_dt, dlogp_z_dt)
 
+
 def OptimalTransportVFS(z, x0, t, sigma):
     '''
         z: is the target samples
@@ -141,21 +146,29 @@ def OptimalTransportVFS(z, x0, t, sigma):
         raise ValueError
 
     t = t.reshape([-1]+[1 for _ in range(len(z.shape[1:]))]).to(device)
-    # x = torch.randn(list(z.shape)).unsqueeze(0).repeat(t.shape[0], 1, 1).to(device)
-    # xt = (std-(std-sigma)*t)*x + (t*z+(1-t)*x0)
-    # z = z.unsqueeze(0).repeat(t.shape[0], 1, 1)
-    # x0 = x0.unsqueeze(0).repeat(t.shape[0], 1, 1)
-    # vt = std * z - (std-sigma)*x + x0 * (2*std*(t-1)+sigma*(1-2*t))
-    # vt = vt / (std-(std-sigma)*t)
-
     xt = t * (z - x0) + x0
     vt = z - x0
+    # print('test xt: ', xt.shape, vt.shape)
+    return  xt, vt
 
-    # x = torch.randn([t.shape[0]]+list(z.shape)).to(device)
-    # xt = (std-(std-sigma)*t)*x + t*z
-    
-    # vt = std * z.unsqueeze(0) - (std-sigma)*x
-    # vt = vt / (std-(std-sigma)*t)
+def OptimalTransportFM(z, x0, t, sigma):
+    '''
+        z: is the target samples
+        x: is x(t)
+        t: time_steps: 1D tensor
+    '''
+    t = t.reshape(-1)
+    if t.shape[0] == 1:
+        t = t.repeat(x0.shape[0])
+    elif t.shape[0] != x0.shape[0]:
+        raise ValueError
+    t = t.reshape([-1]+[1 for _ in range(len(z.shape[1:]))]).to(device)
+
+    # z = z.unsqueeze(0).repeat(t.shape[0], 1, 1)
+    # x0 = x0.unsqueeze(0).repeat(t.shape[0], 1, 1)
+    xt = (1-(1-sigma)*t)*x0 + t*z
+    vt = z-(1-sigma)*x0 / (1-(1-sigma)*t)
+    # print('test xt: ', t.shape, x0.shape, z.shape, xt.shape, vt.shape)
     return  xt, vt
 
 
@@ -231,26 +244,3 @@ class op_vfs_vector_field_calculator(vector_field_calculator):
     def get_x1_sample(self):
         x1_list = torch.rand(self.sample_num)  
         return x1_list
-
-def OptimalTransportFM(z, x0, x, t, sigma):
-    '''
-        z: is the target samples
-        x: is x(t)
-        t: time_steps: 1D tensor
-    '''
-    t = t.reshape(-1)
-    if t.shape[0] == 1:
-        t = t.repeat(x0.shape[0])
-    elif t.shape[0] != x0.shape[0]:
-        raise ValueError
-
-    t = t.reshape([-1]+[1 for _ in range(len(z.shape[1:]))]).to(device)
-
-    x = x.unsqueeze(0).repeat(t.shape[0], 1, 1)
-    xt = (std-(std-sigma)*t)*x + (t*z+(1-t)*x0)
-    z = z.unsqueeze(0).repeat(t.shape[0], 1, 1)
-    x0 = x0.unsqueeze(0).repeat(t.shape[0], 1, 1)
-    vt = std * z - (std-sigma)*x + x0 * (2*std*(t-1)+sigma*(1-2*t))
-    vt = vt / (std-(std-sigma)*t)
-
-    return  xt, vt
