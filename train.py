@@ -3,7 +3,7 @@ from torch.optim import RMSprop, Adam, SGD
 from torch.optim.lr_scheduler import ExponentialLR
 from data import get_batch_circle
 from utils import RunningAverageMeter, setup_seed, plot
-from model import CNF_, OptimalTransportVFS, OptimalTransportFM
+from model import CNF_, OptimalTransportVFS, OptimalTransportFM, op_vfs_vector_field_calculator
 import matplotlib.pyplot as plt
 import torch.nn as nn
 
@@ -27,6 +27,7 @@ viz_samples = 1000
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+
 def get_raw_data():
     # circles
     samples_1, _  = get_batch_circle(num_samples)
@@ -45,6 +46,7 @@ def get_raw_data():
 
     return x_1, x_0
 
+
 def plot_tem(x_1, x_0):
     view_Samples = x_1.detach().cpu()
     plt.scatter(view_Samples[:,0], view_Samples[:,1], s=2)
@@ -54,6 +56,7 @@ def plot_tem(x_1, x_0):
     plt.scatter(view_Samples[:,0], view_Samples[:,1], s=2)
     plt.show()
     # print('test x1, x0: ', x_1.shape, x_0.shape)
+
 
 def get_batch_interpolation_data(x_1, x_0):
     tp = torch.rand(bsz).to(device)
@@ -67,6 +70,20 @@ def get_batch_interpolation_data(x_1, x_0):
     return xt, vt, tp
 
 
+def get_vector_field_sampler(samples_0):
+    samples_1_batch, _  = get_batch_circle(num_samples*10)
+    samples_1_batch = samples_1_batch[:10000]
+    sample_num = len(samples_1_batch)
+    # samples_0 = torch.randn_like(samples_1).to(device) * std
+    t_list = [t/100 for t in range(100)]
+    vector_data_sampler = {}
+    for t in t_list:
+        vfs_calculator = op_vfs_vector_field_calculator(sample_num, t, sigma)
+        vector_field_x_list, vector_field_value_list = vfs_calculator.get_vector_field_fast(samples_0, samples_1_batch)
+        vector_data_sampler[t] = (vector_field_x_list, vector_field_value_list)
+    return vector_data_sampler
+
+
 def train_main():
     setup_seed(42)
     x_1, x_0 = get_raw_data()
@@ -77,7 +94,7 @@ def train_main():
     loss_meter = RunningAverageMeter()
     loss_list = []
     for itr in range(niter):
-        
+
         optimizer.zero_grad()
         xt, vt, tp = get_batch_interpolation_data(x_1, x_0)
         (vt_pre,) = func(t=tp, states=(xt,), require_div=False)
@@ -97,6 +114,15 @@ def train_main():
 
     plt.plot(loss_list)
     plt.show()
+
+def train_field_data():
+    setup_seed(42)
+    x_1, x_0 = get_raw_data()
+
+    vector_data_sampler = get_vector_field_sampler(x_0[:100])
+    print('test vector_data_sampler: ', vector_data_sampler.keys())
+
+
 if __name__ == "__main__":
-    train_main()
+    train_field_data()
 

@@ -2,7 +2,8 @@ import torch
 from torchdiffeq import odeint_adjoint as odeint
 import torch.nn as nn
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+import scipy.stats as st
+from tqdm import tqdm
 
 class HyperNetwork(nn.Module):
     """Hyper-network allowing f(z(t), t) to change with time.
@@ -155,8 +156,12 @@ class vector_field_calculator():
         pass
         
     def get_condition_normal_distribution(self, x, mu, sigma):
-        p = torch.exp(-(x-mu).transpose(0,1)*(x-mu)/(2*sigma*sigma))
-        return p/torch.sqrt(2*self.pai*sigma*sigma)
+        # 二元高斯分布
+        # p = torch.exp((-(x-mu).transpose(0,1)*(x-mu))/(2*sigma*sigma))
+        mu = mu.clone().detach().cpu().numpy()
+        x = x.clone().detach().cpu().numpy()
+        p = st.multivariate_normal.pdf(x, mean=mu, cov=sigma) 
+        return p
          
     def get_x1_sample(self, x1_list): 
         return x1_list
@@ -173,25 +178,26 @@ class vector_field_calculator():
         pass
     
     def get_vector_field(self, x_point_set, x1_list):
-        vector_field_list = {}
+        vector_field_value_list = {}
+        vector_field_x_list = {}
         field_value = 0
-        # x1_list = self.get_x1_sample()
-        for x_ind, x_ in enumerate(x_point_set):
+        for x_ind, x_ in tqdm(enumerate(x_point_set)):
             total_weight = self.sum_x1_condition(x_, x1_list)
             for x1_ in x1_list:
                 mu_t = self.get_mu_t(x1_)
                 sigma_t = self.get_sigma_t(x1_)
-                wieght_u = self.get_condition_normal_distribution(x_, mu_t, sigma_t)*self.get_data_prob(x1)/total_weight
+                wieght_u = self.get_condition_normal_distribution(x_, mu_t, sigma_t)*self.get_data_prob(x1_)/total_weight
                 condition_field = self.get_condition_vertor_field(x_, x1_)
                 field_value += wieght_u*condition_field
-            vector_field_list[x_ind] = field_value
-        return vector_field_list
+            vector_field_value_list[x_ind] = field_value
+            vector_field_x_list[x_ind] = (x_, self.time_point)
+        return vector_field_x_list, vector_field_value_list
 
 
 class op_vfs_vector_field_calculator(vector_field_calculator):
     def __init__(self, sample_num, time_point, sigma_min):
         self.pai = 3.1415926
-        self.sample_num = point_num
+        self.sample_num = sample_num
         self.time_point = time_point
         self.sigma_min = sigma_min
         
@@ -211,6 +217,25 @@ class op_vfs_vector_field_calculator(vector_field_calculator):
     
     def get_x1_sample(self, x1_list): 
         return x1_list
+
+    #   p1服从一定区域上的均匀分布时，此方法可用
+    def get_vector_field_fast(self, x_point_set, x1_list):
+        vector_field_value_list = {}
+        vector_field_x_list = {}
+        field_value = 0
+        for x_ind, x_ in tqdm(enumerate(x_point_set)):
+            # total_weight = self.sum_x1_condition(x_, x1_list)
+            total_weight = 1.0
+            for x1_ in tqdm(x1_list):
+                mu_t = self.get_mu_t(x1_)
+                sigma_t = self.get_sigma_t(x1_)
+                wieght_u = self.get_condition_normal_distribution(x_, mu_t, sigma_t)*self.get_data_prob(x1_)/total_weight
+                condition_field = self.get_condition_vertor_field(x_, x1_)
+                field_value += wieght_u*condition_field
+            vector_field_value_list[x_ind] = field_value
+            vector_field_x_list[x_ind] = (x_, self.time_point)
+        return vector_field_x_list, vector_field_value_list
+
 
 class CNF(nn.Module):
     """Adapted from the NumPy implementation at:
