@@ -36,9 +36,7 @@ def plot(samples_0, samples_1, M):
     plt.scatter(samples_0[:, 0].cpu().numpy(), samples_0[:, 1].cpu().numpy(), alpha=0.5, label=r'$\pi_0$')
     plt.scatter(samples_1[:, 0].cpu().numpy(), samples_1[:, 1].cpu().numpy(), alpha=0.5, label=r'$\pi_1$')
     plt.legend()
-
     plt.tight_layout()
-
     return fig
 
 def save_model():

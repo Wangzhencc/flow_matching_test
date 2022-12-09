@@ -99,40 +99,6 @@ class CNF_(nn.Module):
             return t
 
 
-class CNF(nn.Module):
-    """Adapted from the NumPy implementation at:
-    https://gist.github.com/rtqichen/91924063aa4cc95e7ef30b3a5491cc52
-    """
-    def __init__(self, in_out_dim, hidden_dim, width):
-        super().__init__()
-        self.in_out_dim = in_out_dim
-        self.hidden_dim = hidden_dim
-        self.width = width
-        self.hyper_net = HyperNetwork(in_out_dim, hidden_dim, width)
-
-    def forward(self, t, states):
-        z = states[0]
-        logp_z = states[1]
-
-        batchsize = z.shape[0]
-
-        with torch.set_grad_enabled(True):
-            z.requires_grad_(True)
-
-            W, B, U = self.hyper_net(t)
-
-            Z = torch.unsqueeze(z, 0).repeat(self.width, 1, 1)
-
-            h = torch.tanh(torch.matmul(Z, W) + B)
-            dz_dt = torch.matmul(h, U).mean(0)
-            
-
-            # dlogp_z_dt = -trace_df_dz(dz_dt, z).view(batchsize, 1)
-            dlogp_z_dt = torch.tensor(0.).to(device)
-
-        return (dz_dt, dlogp_z_dt)
-
-
 def OptimalTransportVFS(z, x0, t, sigma):
     '''
         z: is the target samples
@@ -140,11 +106,7 @@ def OptimalTransportVFS(z, x0, t, sigma):
         t: time_steps: 1D tensor
     '''
     t = t.reshape(-1)
-    if t.shape[0] == 1:
-        t = t.repeat(x0.shape[0])
-    elif t.shape[0] != x0.shape[0]:
-        raise ValueError
-
+    check_shape_t(t, x0)
     t = t.reshape([-1]+[1 for _ in range(len(z.shape[1:]))]).to(device)
     xt = t * (z - x0) + x0
     vt = z - x0
@@ -158,12 +120,9 @@ def OptimalTransportFM(z, x0, t, sigma):
         t: time_steps: 1D tensor
     '''
     t = t.reshape(-1)
-    if t.shape[0] == 1:
-        t = t.repeat(x0.shape[0])
-    elif t.shape[0] != x0.shape[0]:
-        raise ValueError
-    t = t.reshape([-1]+[1 for _ in range(len(z.shape[1:]))]).to(device)
 
+    t = t.reshape([-1]+[1 for _ in range(len(z.shape[1:]))]).to(device)
+    check_shape_t(t, x0)
     # z = z.unsqueeze(0).repeat(t.shape[0], 1, 1)
     # x0 = x0.unsqueeze(0).repeat(t.shape[0], 1, 1)
     xt = (1-(1-sigma)*t)*x0 + t*z
@@ -171,6 +130,13 @@ def OptimalTransportFM(z, x0, t, sigma):
     # print('test xt: ', t.shape, x0.shape, z.shape, xt.shape, vt.shape)
     return  xt, vt
 
+def check_shape_t(t, x0):
+    if t.shape[0] == 1:
+        return t.repeat(x0.shape[0])
+    elif t.shape[0] != x0.shape[0]:
+        raise ValueError
+    else:
+        return t
 
 class vector_field_calculator():
 
@@ -200,7 +166,7 @@ class vector_field_calculator():
         for x1 in x1_list:
             mu_t = self.get_mu_t(x1)
             sigma_t = self.get_sigma_t(x1)
-            sum_x1_condition_p += self.get_data_prob(x1)*self.get_condition_normal_distribution(x1, mu_t, sigma_t)
+            sum_x1_condition_p += self.get_data_prob(x1)*self.get_condition_normal_distribution(x, mu_t, sigma_t)
         return sum_x1_condition_p
     
     def get_condition_vertor_field(self, x, x1):
@@ -230,7 +196,9 @@ class op_vfs_vector_field_calculator(vector_field_calculator):
         self.sigma_min = sigma_min
         
     def get_data_prob(self, x1):
-        return x1 #这里需要依据分布修改
+        #这里假设是定义区域上的均匀分布
+        k = 0.1
+        return k 
     
     def get_mu_t(self, x1):
         return self.time_point * x1
@@ -241,6 +209,31 @@ class op_vfs_vector_field_calculator(vector_field_calculator):
     def get_condition_vertor_field(self, x, x1):
         return (x1 - (1-self.sigma_min) * x)/(1- (1-self.sigma_min) * self.time_point)
     
-    def get_x1_sample(self):
-        x1_list = torch.rand(self.sample_num)  
+    def get_x1_sample(self, x1_list): 
         return x1_list
+
+class CNF(nn.Module):
+    """Adapted from the NumPy implementation at:
+    https://gist.github.com/rtqichen/91924063aa4cc95e7ef30b3a5491cc52
+    """
+    def __init__(self, in_out_dim, hidden_dim, width):
+        super().__init__()
+        self.in_out_dim = in_out_dim
+        self.hidden_dim = hidden_dim
+        self.width = width
+        self.hyper_net = HyperNetwork(in_out_dim, hidden_dim, width)
+
+    def forward(self, t, states):
+        z = states[0]
+        logp_z = states[1]
+        batchsize = z.shape[0]
+        with torch.set_grad_enabled(True):
+            z.requires_grad_(True)
+            W, B, U = self.hyper_net(t)
+            Z = torch.unsqueeze(z, 0).repeat(self.width, 1, 1)
+            h = torch.tanh(torch.matmul(Z, W) + B)
+            dz_dt = torch.matmul(h, U).mean(0)
+            # dlogp_z_dt = -trace_df_dz(dz_dt, z).view(batchsize, 1)
+            dlogp_z_dt = torch.tensor(0.).to(device)
+
+        return (dz_dt, dlogp_z_dt)

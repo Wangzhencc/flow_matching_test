@@ -19,6 +19,7 @@ n_x = 1
 
 hidden_dim = [100, 256, 256, 100]
 width = 64
+###尺度信息有影响，需要 normalization 数据
 sigma = 0.05 # variance of x(1) distribution
 std = 0.2
 viz_timesteps = 240
@@ -40,15 +41,19 @@ def get_raw_data():
         )
     log_prob_x0 = p_x0.log_prob(x_0)
 
-    # view_Samples = x_1.detach().cpu()
-    # plt.scatter(view_Samples[:,0], view_Samples[:,1], s=2)
-    # plt.show()
+    # plot_tem(x_1, x_0)
 
-    # view_Samples = x_0.detach().cpu()
-    # plt.scatter(view_Samples[:,0], view_Samples[:,1], s=2)
-    # plt.show()
-    # print('test x1, x0: ', x_1.shape, x_0.shape)
     return x_1, x_0
+
+def plot_tem(x_1, x_0):
+    view_Samples = x_1.detach().cpu()
+    plt.scatter(view_Samples[:,0], view_Samples[:,1], s=2)
+    plt.show()
+
+    view_Samples = x_0.detach().cpu()
+    plt.scatter(view_Samples[:,0], view_Samples[:,1], s=2)
+    plt.show()
+    # print('test x1, x0: ', x_1.shape, x_0.shape)
 
 def get_batch_interpolation_data(x_1, x_0):
     tp = torch.rand(bsz).to(device)
@@ -72,6 +77,7 @@ def train_main():
     loss_meter = RunningAverageMeter()
     loss_list = []
     for itr in range(niter):
+        
         optimizer.zero_grad()
         xt, vt, tp = get_batch_interpolation_data(x_1, x_0)
         (vt_pre,) = func(t=tp, states=(xt,), require_div=False)
