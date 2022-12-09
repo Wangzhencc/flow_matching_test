@@ -2,6 +2,9 @@ from torch.distributions import Normal, Categorical
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.distributions.mixture_same_family import MixtureSameFamily
 from sklearn.datasets import make_circles, make_checkerboard
+import numpy as np
+import pandas as pd
+import scipy.stats as st
 import torch
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -23,6 +26,12 @@ def get_batch_circle(num_samples):
     logp_diff_t1 = torch.zeros(num_samples, 1).type(torch.float32).to(device)
 
     return(x, logp_diff_t1)
+
+def get_gaussian_pdf(num_samples, mu = (0.0,0.0), sigma=1.0):
+
+    x_data = np.random.uniform(-2.0,2.0,(num_samples, 2))
+    y_data = st.multivariate_normal.pdf(x_data, mean=mu, cov=sigma) 
+    return x_data, y_data
 
 def get_batch_gaussian(num_samples, D):
 
