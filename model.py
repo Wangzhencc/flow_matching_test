@@ -158,8 +158,8 @@ class vector_field_calculator():
         p = torch.exp(-(x-mu).transpose(0,1)*(x-mu)/(2*sigma*sigma))
         return p/torch.sqrt(2*self.pai*sigma*sigma)
          
-    def get_x1_sample(self):
-        pass
+    def get_x1_sample(self, x1_list): 
+        return x1_list
         
     def sum_x1_condition(self, x, x1_list):
         sum_x1_condition_p = 0.0
@@ -172,10 +172,10 @@ class vector_field_calculator():
     def get_condition_vertor_field(self, x, x1):
         pass
     
-    def get_vector_field(self, x_point_set):
+    def get_vector_field(self, x_point_set, x1_list):
         vector_field_list = {}
         field_value = 0
-        x1_list = self.get_x1_sample()
+        # x1_list = self.get_x1_sample()
         for x_ind, x_ in enumerate(x_point_set):
             total_weight = self.sum_x1_condition(x_, x1_list)
             for x1_ in x1_list:
@@ -196,7 +196,7 @@ class op_vfs_vector_field_calculator(vector_field_calculator):
         self.sigma_min = sigma_min
         
     def get_data_prob(self, x1):
-        #这里假设是定义区域上的均匀分布
+        #这里假设是取值区域上的均匀分布
         k = 0.1
         return k 
     
