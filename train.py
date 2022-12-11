@@ -1,12 +1,13 @@
 import torch
 from torch.optim import RMSprop, Adam, SGD
 from torch.optim.lr_scheduler import ExponentialLR
-from data import get_batch_circle, get_gaussian_pdf
-from utils import RunningAverageMeter, setup_seed, plot
+from data import get_batch_circle, get_gaussian_pdf, vertor_field_dataset
+from utils import RunningAverageMeter, setup_seed, plot, index_sampler
 from model import CNF_, OptimalTransportVFS, OptimalTransportFM, op_vfs_vector_field_calculator
 import matplotlib.pyplot as plt
 import torch.nn as nn
 from tqdm import tqdm
+from torch.utils.data import DataLoader
 
 # parameters
 t0 = 0.
@@ -24,8 +25,6 @@ sigma = 0.05 # variance of x(1) distribution
 std = 0.2
 viz_timesteps = 240
 viz_samples = 1000
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def get_raw_data():
@@ -70,20 +69,6 @@ def get_batch_interpolation_data(x_1, x_0):
     return xt, vt, tp
 
 
-def get_vector_field_sampler(samples_0):
-    samples_1_batch, _  = get_batch_circle(num_samples*10)
-    samples_1_batch = samples_1_batch[:100]
-    sample_num = len(samples_1_batch)
-    # samples_0 = torch.randn_like(samples_1).to(device) * std
-    t_list = [t/2 for t in range(2)]
-    vector_data_sampler = {}
-    for t in t_list:
-        vfs_calculator = op_vfs_vector_field_calculator(sample_num, t, sigma)
-        vector_field_x_dict, vector_field_value_dict = vfs_calculator.get_vector_field(samples_0, samples_1_batch)
-        vector_data_sampler[t] = (vector_field_x_list, vector_field_value_list)
-    return vector_data_sampler
-
-
 def train_main():
     setup_seed(42)
     x_1, x_0 = get_raw_data()
@@ -96,6 +81,7 @@ def train_main():
     for itr in range(niter):
 
         optimizer.zero_grad()
+        ### 这里，注意下xt，vt
         xt, vt, tp = get_batch_interpolation_data(x_1, x_0)
         (vt_pre,) = func(t=tp, states=(xt,), require_div=False)
         mse_loss = nn.MSELoss()
@@ -115,14 +101,43 @@ def train_main():
     plt.plot(loss_list)
     plt.show()
 
+
 def train_field_data():
     setup_seed(42)
-    x_1, x_0 = get_raw_data()
+    time_delta_num = 10
+    target_sample_num = 1000
+    raw_sample_num = 10000
+    batch_size = bsz
 
-    vector_data_sampler = get_vector_field_sampler(x_0[:100])
+    vector_field_datasets = vertor_field_dataset(time_delta_num, target_sample_num, raw_sample_num)
+    dataloader = DataLoader(vector_field_datasets, batch_size=batch_size, shuffle=True)
+    func = CNF_(in_out_dim=2, hidden_dim=hidden_dim).to(device)
+    func.train()
+    optimizer = Adam(func.parameters(), lr=1e-3)
+    lrsc = ExponentialLR(optimizer=optimizer, gamma=0.9998)
+    loss_meter = RunningAverageMeter()
+    loss_list = []
+    for epoch in range(niter):
+        for step1, (time_p, batch_xt, batch_vt) in enumerate(dataloader):
+            # training
+            optimizer.zero_grad()
+            time_p = time_p.to(device).to(torch.float32)
+            (vt_pre,) = func(t=time_p, states=(batch_xt,), require_div=False)
+            mse_loss = nn.MSELoss()
+            loss = mse_loss(vt_pre, batch_vt)
+            # loss = (vt - vt_pre).view(vt.shape[0], -1).abs().pow(2).sum(dim=1)
+            loss = loss.mean()
+            loss.backward()
+            optimizer.step()
+            lrsc.step()
 
+            loss_meter.update(loss.item())
+            loss_list.append(loss.item())
+
+            if step1 % 100 == 0:
+                print('Iter: epoch: {}, step: {}, running avg loss: {:.4f}'.format(epoch, step1, loss_meter.avg))
 
 if __name__ == "__main__":
-    # train_field_data()
-    train_main()
+    train_field_data()
+    # train_main()
 

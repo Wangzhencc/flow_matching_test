@@ -77,7 +77,6 @@ class CNF_(nn.Module):
             self.check_t(t, bsz)
             z = z.reshape(bsz, -1)
             z.requires_grad_(True)
-
             v = torch.cat((z.reshape(bsz, -1), t.unsqueeze(1)), dim=1)
             for l in self.layers:
                 v = l(v)
@@ -140,9 +139,8 @@ def check_shape_t(t, x0):
 
 class vector_field_calculator():
 
-    def __init__(self, sample_num, time_point):
+    def __init__(self, time_point):
         self.pai = 3.1415926
-        self.sample_num = point_num
         self.time_point = time_point
     
     def get_data_prob(self, x):
@@ -189,14 +187,13 @@ class vector_field_calculator():
                 condition_field = self.get_condition_vertor_field(x_, x1_)
                 field_value += wieght_u*condition_field
             vector_field_value_list[x_ind] = field_value
-            vector_field_x_list[x_ind] = (x_, self.time_point)
+            vector_field_x_list[x_ind] = (condition_field, x_, self.time_point)
         return vector_field_x_list, vector_field_value_list
 
 
 class op_vfs_vector_field_calculator(vector_field_calculator):
-    def __init__(self, sample_num, time_point, sigma_min):
+    def __init__(self, time_point, sigma_min):
         self.pai = 3.1415926
-        self.sample_num = sample_num
         self.time_point = time_point
         self.sigma_min = sigma_min
         
@@ -217,7 +214,26 @@ class op_vfs_vector_field_calculator(vector_field_calculator):
     def get_x1_sample(self, x1_list): 
         return x1_list
 
-    #   p1服从一定区域上的均匀分布时，并且积分值比较容易算出来的时候，此方法可用
+    def get_vector_field(self, x_point_set, x1_list):
+        # vector_field_value_list = {}
+        # vector_field_x_list = {}
+        vector_field_data_list = {}
+        field_value = 0
+        for x_ind, x_ in tqdm(enumerate(x_point_set)):
+            total_weight = self.sum_x1_condition(x_, x1_list)
+            field_value = 0
+            for x1_ in x1_list:
+                mu_t = self.get_mu_t(x1_)
+                sigma_t = self.get_sigma_t(x1_)
+                wieght_u = self.get_condition_normal_distribution(x_, mu_t, sigma_t)*self.get_data_prob(x1_)/total_weight
+                condition_field_x = self.get_condition_vertor_field(x_, x1_)
+                field_value += wieght_u*condition_field_x
+
+            # vector_field_value_list[x_ind] = field_value
+            vector_field_data_list[x_ind] = (x_, condition_field_x, self.time_point, field_value)
+        return vector_field_data_list
+
+    #   p1服从一定区域上的均匀分布时，并且积分值比较容易算出来的时候，此方法在一些特殊的计算下可用
     def get_vector_field_fast(self, x_point_set, x1_list):
         vector_field_value_list = {}
         vector_field_x_list = {}
@@ -229,10 +245,10 @@ class op_vfs_vector_field_calculator(vector_field_calculator):
                 mu_t = self.get_mu_t(x1_)
                 sigma_t = self.get_sigma_t(x1_)
                 wieght_u = self.get_condition_normal_distribution(x_, mu_t, sigma_t)*self.get_data_prob(x1_)/total_weight
-                condition_field = self.get_condition_vertor_field(x_, x1_)
-                field_value += wieght_u*condition_field
+                condition_field_x = self.get_condition_vertor_field(x_, x1_)
+                field_value += wieght_u*condition_field_x
             vector_field_value_list[x_ind] = field_value
-            vector_field_x_list[x_ind] = (x_, self.time_point)
+            vector_field_x_list[x_ind] = (condition_field_x, x_, self.time_point)
         return vector_field_x_list, vector_field_value_list
 
 

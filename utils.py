@@ -2,6 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 import torch
+import pandas as pd
+import scipy.stats as st
+
 
 class RunningAverageMeter():
     """Computes and stores the average and current value"""
@@ -38,6 +41,10 @@ def plot(samples_0, samples_1, M):
     plt.legend()
     plt.tight_layout()
     return fig
+
+def index_sampler(sample_size, sample_scope):
+    sample_ind = torch.randint(low=sample_scope[0], high=sample_scope[1], size=sample_size) 
+    return sample_ind  
 
 def save_model():
     pass

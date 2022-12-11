@@ -2,12 +2,30 @@ from torch.distributions import Normal, Categorical
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.distributions.mixture_same_family import MixtureSameFamily
 from sklearn.datasets import make_circles, make_checkerboard
+from model import CNF_, OptimalTransportVFS, OptimalTransportFM, op_vfs_vector_field_calculator
+from torch.utils import data
 import numpy as np
 import pandas as pd
 import scipy.stats as st
 import torch
+from tqdm import tqdm
 
+# parameters
+t0 = 0.
+t1 = 1.
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+niter = 10000
+num_samples = 10000
+bsz = 1280
+n_x = 1
+
+hidden_dim = [100, 256, 256, 100]
+width = 64
+###尺度信息有影响，需要 normalization 数据
+sigma = 0.05 # variance of x(1) distribution
+std = 0.2
+viz_timesteps = 240
+viz_samples = 1000
 
 def get_batch_checkboard(num_samples):
 
@@ -50,3 +68,46 @@ def get_batch_gaussian(num_samples, D):
     samples_1 = target_model.sample([num_samples])
 
     return samples_0, samples_1
+
+class vertor_field_dataset(data.Dataset):
+    def __init__(self, time_delta_num, target_sample_num, raw_sample_num):
+
+        self.target_sample_num = target_sample_num
+        self.time_delta_num = time_delta_num
+        self.raw_sample_num = raw_sample_num
+        self.target_data, self.raw_data = self.get_target_sample_data()
+        self.t_dict, self.vector_data_sampler = self.get_vector_field_sampler()
+    def __getitem__(self,index):
+        time_index = index % self.time_delta_num
+        point_index = index // self.time_delta_num
+        u_data = self.vector_data_sampler[time_index][point_index][1]
+        u_label = self.vector_data_sampler[time_index][point_index][3]
+        return self.t_dict[time_index], u_data, u_label
+
+    def __len__(self):
+        return self.time_delta_num*self.raw_sample_num
+    
+    def get_vector_field_sampler(self):
+        self.target_sample_cal = self.target_data[:self.target_sample_num]
+        t_list = [t/self.time_delta_num for t in range(self.time_delta_num)]
+        ind_list = [i for i in range(self.time_delta_num)]
+        t_dict = dict(zip(ind_list, t_list))
+
+        vector_data_sampler = {}
+        for i,t in tqdm(enumerate(t_list)):
+            vfs_calculator = op_vfs_vector_field_calculator(t, sigma)
+            vector_field_data_list = vfs_calculator.get_vector_field(self.raw_data, self.target_sample_cal)
+            vector_data_sampler[i] = vector_field_data_list
+        return t_dict, vector_data_sampler
+    
+    def get_target_sample_data(self):
+        # circles
+        target_data, _  = get_batch_circle(self.raw_sample_num)
+        raw_data = torch.randn_like(target_data).to(device) * std
+
+        x_1 = target_data.detach().clone()[torch.randperm(len(target_data))]
+        x_0 = raw_data.detach().clone()[torch.randperm(len(raw_data))]
+        
+        return x_1, x_0
+
+
