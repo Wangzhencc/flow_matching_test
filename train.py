@@ -6,7 +6,9 @@ from utils import RunningAverageMeter, setup_seed, plot, index_sampler
 from model import CNF_, OptimalTransportVFS, OptimalTransportFM, op_vfs_vector_field_calculator
 import matplotlib.pyplot as plt
 import torch.nn as nn
+import numpy as np
 from tqdm import tqdm
+from  sampler import ode_sampler
 from torch.utils.data import DataLoader
 
 # parameters
@@ -78,7 +80,7 @@ def train_main():
     lrsc = ExponentialLR(optimizer=optimizer, gamma=0.9998)
     loss_meter = RunningAverageMeter()
     loss_list = []
-    for itr in range(niter):
+    for itr in range(10):
 
         optimizer.zero_grad()
         ### 这里，注意下xt，vt
@@ -100,14 +102,15 @@ def train_main():
 
     plt.plot(loss_list)
     plt.show()
-
+    return func
 
 def train_field_data():
     setup_seed(42)
-    time_delta_num = 10
-    target_sample_num = 1000
-    raw_sample_num = 10000
-    batch_size = bsz
+    time_delta_num = 2
+    target_sample_num = 100
+    raw_sample_num = 10
+    batch_size = 12
+    niter = 10
 
     vector_field_datasets = vertor_field_dataset(time_delta_num, target_sample_num, raw_sample_num)
     dataloader = DataLoader(vector_field_datasets, batch_size=batch_size, shuffle=True)
@@ -137,7 +140,36 @@ def train_field_data():
             if step1 % 100 == 0:
                 print('Iter: epoch: {}, step: {}, running avg loss: {:.4f}'.format(epoch, step1, loss_meter.avg))
 
+    return func
+
+def draw_plot(func):
+    t0 = 0.
+    t1 = 1.
+    # sigma = 0.001 # variance of x(1) distribution
+    var = 0.05
+    viz_timesteps = 5
+    x0 = torch.randn(3000, 2)* sigma
+
+    ts = torch.tensor(np.linspace(t0, t1, viz_timesteps)).to(device)
+
+    z_t_samples, _  = ode_sampler(func, x0, ts)
+
+    z, logp_diff_t1 = get_batch_circle(3000)
+    z = z.cpu()
+    plt.scatter(z[:,0], z[:,1])
+    plt.xlim([-1.5, 1.5])
+    plt.ylim([-1.5, 1.5])
+    plt.show()
+    for ix, data in enumerate(z_t_samples.detach().cpu()):
+        if idx % 100 == 0:
+            plt.scatter(data[:,0], data[:,1])
+            plt.title("t="+str(int(ts[ix])))
+            plt.xlim([-1.5, 1.5])
+            plt.ylim([-1.5, 1.5])
+            plt.show()
+
 if __name__ == "__main__":
-    train_field_data()
-    # train_main()
+    func = train_field_data()
+    # func = train_main()
+    draw_plot(func)
 
