@@ -96,7 +96,7 @@ class vertor_field_dataset(data.Dataset):
         vector_data_sampler = {}
         for i,t in tqdm(enumerate(t_list)):
             vfs_calculator = op_vfs_vector_field_calculator(t, sigma)
-            vector_field_data_list = vfs_calculator.get_vector_field(self.raw_data, self.target_sample_cal)
+            vector_field_data_list = vfs_calculator.get_vector_field_fast(self.raw_data, self.target_sample_cal)
             vector_data_sampler[i] = vector_field_data_list
         return t_dict, vector_data_sampler
     
@@ -116,7 +116,6 @@ class conditional_vertor_field_dataset(data.Dataset):
         self.target_sample_num = target_sample_num
         self.raw_sample_num = raw_sample_num
         self.sigma = sigma
-        self.target_data, self.raw_data = self.get_target_sample_data()
         self.tp, self.conditional_vector_data_sampler = self.get_conditional_vector_field_sampler()
 
     def __getitem__(self,index):
@@ -131,8 +130,9 @@ class conditional_vertor_field_dataset(data.Dataset):
     def get_conditional_vector_field_sampler(self):
         tp = torch.rand(self.raw_sample_num).to(device)
         idx = torch.randint(low=0, high=self.raw_sample_num, size=(self.raw_sample_num,))
-        z = self.target_data[idx]
-        x0 = self.raw_data[idx]
+        target_data, raw_data = self.get_target_sample_data()
+        z = target_data[idx]
+        x0 = raw_data[idx]
         xt, vt = OptimalTransportFM(z, x0, tp, sigma)
         return tp, (xt, vt)
     

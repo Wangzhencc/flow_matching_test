@@ -2,7 +2,7 @@ import torch
 from torch.optim import RMSprop, Adam, SGD
 from torch.optim.lr_scheduler import ExponentialLR
 from data import get_batch_circle, get_gaussian_pdf, vertor_field_dataset, conditional_vertor_field_dataset
-from utils import RunningAverageMeter, setup_seed, plot, index_sampler
+from utils import RunningAverageMeter, setup_seed, plot, index_sampler, save_sif_sample_data
 from model import CNF_, OptimalTransportVFS, OptimalTransportFM, op_vfs_vector_field_calculator
 import matplotlib.pyplot as plt
 import torch.nn as nn
@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 t0 = 0.
 t1 = 1.
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-niter = 10000
+niter = 1000
 num_samples = 10000
 bsz = 1280
 n_x = 1
@@ -60,6 +60,8 @@ def plot_tem(x_1, x_0):
 
 
 def get_batch_interpolation_data(x_1, x_0):
+
+    ###奇怪的不同
     tp = torch.rand(bsz).to(device)
     idx = torch.randint(low=0, high=num_samples, size=(bsz,))
     z = x_1[idx]
@@ -144,11 +146,11 @@ def train_demo_main():
 
 def train_field_data():
     setup_seed(42)
-    time_delta_num = 2
+    time_delta_num = 100
     target_sample_num = 100
-    raw_sample_num = 10
-    batch_size = 12
-    niter = 100
+    raw_sample_num = 1000
+    batch_size = 1280
+    niter = 1000
 
     vector_field_datasets = vertor_field_dataset(time_delta_num, target_sample_num, raw_sample_num)
     dataloader = DataLoader(vector_field_datasets, batch_size=batch_size, shuffle=True)
@@ -180,19 +182,21 @@ def train_field_data():
 
     return func
 
-def draw_plot(func):
+def infer_draw_plot(func):
     t0 = 0.
     t1 = 1.
     # sigma = 0.001 # variance of x(1) distribution
     var = 0.05
-    viz_timesteps = 5
+    viz_timesteps = 100
     x0 = torch.randn(3000, 2)* sigma
 
     ts = torch.tensor(np.linspace(t0, t1, viz_timesteps)).to(device)
 
     z_t_samples, _  = ode_sampler(func, x0, ts)
 
+    save_sif_sample_data(z_t_samples, x0, ts)
     z, logp_diff_t1 = get_batch_circle(3000)
+
     z = z.cpu()
     plt.scatter(z[:,0], z[:,1])
     plt.xlim([-1.5, 1.5])
@@ -209,5 +213,6 @@ def draw_plot(func):
 if __name__ == "__main__":
     # func = train_field_data()
     func = train_demo_main()
-    draw_plot(func)
+    # func = train_main()
+    infer_draw_plot(func)
 

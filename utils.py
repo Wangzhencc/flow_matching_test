@@ -4,7 +4,11 @@ import random
 import torch
 import pandas as pd
 import scipy.stats as st
-
+import matplotlib.animation as animation
+import cv2
+from pathlib import Path
+from tqdm import tqdm
+import os
 
 class RunningAverageMeter():
     """Computes and stores the average and current value"""
@@ -49,3 +53,24 @@ def index_sampler(sample_size, sample_scope):
 
 def save_model():
     pass
+
+def save_sif_sample_data(z_t_samples, x0, ts):
+    for ix, data in tqdm(enumerate(z_t_samples.detach().cpu())):
+        fig = plot(x0, data, M=2.)
+        plt.savefig("./figs/p_{0}.png".format(ix), dpi=60)
+        plt.close()
+
+    fig = plt.figure()
+    ims = []
+    for i in range(ts.shape[0]):
+        img = cv2.imread("./figs/p_{0}.png".format(i))
+        (r, g, b) = cv2.split(img)
+        img = cv2.merge([b,g,r])
+        im = plt.imshow(img, animated=True)
+        ims.append([im])
+    ani = animation.ArtistAnimation(fig, artists=ims, interval=50)
+    ani.save("animation.gif")
+
+
+
+

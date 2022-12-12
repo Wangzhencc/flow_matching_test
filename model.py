@@ -235,22 +235,22 @@ class op_vfs_vector_field_calculator(vector_field_calculator):
 
     #   p1服从一定区域上的均匀分布时，并且积分值比较容易算出来的时候，此方法在一些特殊的计算下可用
     def get_vector_field_fast(self, x_point_set, x1_list):
-        vector_field_value_list = {}
-        vector_field_x_list = {}
+        vector_field_data_list = {}
         field_value = 0
         for x_ind, x_ in tqdm(enumerate(x_point_set)):
             # total_weight = self.sum_x1_condition(x_, x1_list)
             total_weight = 1.0
+            field_value = 0
             for x1_ in x1_list:
                 mu_t = self.get_mu_t(x1_)
                 sigma_t = self.get_sigma_t(x1_)
                 wieght_u = self.get_condition_normal_distribution(x_, mu_t, sigma_t)*self.get_data_prob(x1_)/total_weight
                 condition_field_x = self.get_condition_vertor_field(x_, x1_)
                 field_value += wieght_u*condition_field_x
-            vector_field_value_list[x_ind] = field_value
-            vector_field_x_list[x_ind] = (condition_field_x, x_, self.time_point)
-        return vector_field_x_list, vector_field_value_list
 
+            # vector_field_value_list[x_ind] = field_value
+            vector_field_data_list[x_ind] = (x_, condition_field_x, self.time_point, field_value)
+        return vector_field_data_list
 
 class CNF(nn.Module):
     """Adapted from the NumPy implementation at:
