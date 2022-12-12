@@ -5,7 +5,8 @@ import torch
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def ode_sampler(func, x0, ts):
-    z_t_samples, _ = odeint(
+    ts = ts.type_as(x0)
+    z_t_samples = odeint(
                     func,
                     (x0.to(device), torch.zeros(x0.shape[:1]).to(device)),
                     ts,

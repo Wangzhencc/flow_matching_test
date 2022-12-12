@@ -74,7 +74,7 @@ class CNF_(nn.Module):
         t = t.reshape(-1)
         with torch.set_grad_enabled(True):
 
-            self.check_t(t, bsz)
+            t = self.check_t(t, bsz)
             z = z.reshape(bsz, -1)
             z.requires_grad_(True)
             v = torch.cat((z.reshape(bsz, -1), t.unsqueeze(1)), dim=1)

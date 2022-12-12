@@ -110,4 +110,40 @@ class vertor_field_dataset(data.Dataset):
         
         return x_1, x_0
 
+class conditional_vertor_field_dataset(data.Dataset):
+    def __init__(self, target_sample_num, raw_sample_num, sigma):
+
+        self.target_sample_num = target_sample_num
+        self.raw_sample_num = raw_sample_num
+        self.sigma = sigma
+        self.target_data, self.raw_data = self.get_target_sample_data()
+        self.tp, self.conditional_vector_data_sampler = self.get_conditional_vector_field_sampler()
+
+    def __getitem__(self,index):
+
+        u_data = self.conditional_vector_data_sampler[0][index]
+        u_label = self.conditional_vector_data_sampler[1][index]
+        return self.tp[index], u_data, u_label
+
+    def __len__(self):
+        return self.raw_sample_num
+    
+    def get_conditional_vector_field_sampler(self):
+        tp = torch.rand(self.raw_sample_num).to(device)
+        idx = torch.randint(low=0, high=self.raw_sample_num, size=(self.raw_sample_num,))
+        z = self.target_data[idx]
+        x0 = self.raw_data[idx]
+        xt, vt = OptimalTransportFM(z, x0, tp, sigma)
+        return tp, (xt, vt)
+    
+    def get_target_sample_data(self):
+        # circles
+        target_data, _  = get_batch_circle(self.raw_sample_num)
+        raw_data = torch.randn_like(target_data).to(device) * std
+
+        x_1 = target_data.detach().clone()[torch.randperm(len(target_data))]
+        x_0 = raw_data.detach().clone()[torch.randperm(len(raw_data))]
+        
+        return x_1, x_0
+
 

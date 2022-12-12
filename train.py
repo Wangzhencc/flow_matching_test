@@ -1,7 +1,7 @@
 import torch
 from torch.optim import RMSprop, Adam, SGD
 from torch.optim.lr_scheduler import ExponentialLR
-from data import get_batch_circle, get_gaussian_pdf, vertor_field_dataset
+from data import get_batch_circle, get_gaussian_pdf, vertor_field_dataset, conditional_vertor_field_dataset
 from utils import RunningAverageMeter, setup_seed, plot, index_sampler
 from model import CNF_, OptimalTransportVFS, OptimalTransportFM, op_vfs_vector_field_calculator
 import matplotlib.pyplot as plt
@@ -80,7 +80,7 @@ def train_main():
     lrsc = ExponentialLR(optimizer=optimizer, gamma=0.9998)
     loss_meter = RunningAverageMeter()
     loss_list = []
-    for itr in range(10):
+    for itr in range(niter):
 
         optimizer.zero_grad()
         ### 这里，注意下xt，vt
@@ -104,13 +104,51 @@ def train_main():
     plt.show()
     return func
 
+def train_demo_main():
+    setup_seed(42)
+    target_sample_num = 10000
+    raw_sample_num = 10000
+    batch_size = 1280
+
+    conditional_vector_field_datasets = conditional_vertor_field_dataset(target_sample_num, raw_sample_num, sigma)
+    dataloader = DataLoader(conditional_vector_field_datasets, batch_size=batch_size, shuffle=True)
+    func = CNF_(in_out_dim=2, hidden_dim=hidden_dim).to(device)
+    func.train()
+    optimizer = Adam(func.parameters(), lr=1e-3)
+    lrsc = ExponentialLR(optimizer=optimizer, gamma=0.9998)
+    loss_meter = RunningAverageMeter()
+    loss_list = []
+    for itr in range(niter):
+        for step1, (time_p, batch_xt, batch_vt) in enumerate(dataloader):
+            optimizer.zero_grad()
+            ### 这里，注意下xt，vt
+            # xt, vt, tp = get_batch_interpolation_data(x_1, x_0)
+            (vt_pre,) = func(t=time_p, states=(batch_xt,), require_div=False)
+            mse_loss = nn.MSELoss()
+            loss = mse_loss(vt_pre, batch_vt)
+            # loss = (vt - vt_pre).view(vt.shape[0], -1).abs().pow(2).sum(dim=1)
+            loss = loss.mean()
+            loss.backward()
+            optimizer.step()
+            lrsc.step()
+
+            loss_meter.update(loss.item())
+            loss_list.append(loss.item())
+
+            if itr % 100 == 0:
+                print('Iter: {} step: {}, running avg loss: {:.4f}'.format(itr, step1, loss_meter.avg))
+
+    plt.plot(loss_list)
+    plt.show()
+    return func
+
 def train_field_data():
     setup_seed(42)
     time_delta_num = 2
     target_sample_num = 100
     raw_sample_num = 10
     batch_size = 12
-    niter = 10
+    niter = 100
 
     vector_field_datasets = vertor_field_dataset(time_delta_num, target_sample_num, raw_sample_num)
     dataloader = DataLoader(vector_field_datasets, batch_size=batch_size, shuffle=True)
@@ -161,7 +199,7 @@ def draw_plot(func):
     plt.ylim([-1.5, 1.5])
     plt.show()
     for ix, data in enumerate(z_t_samples.detach().cpu()):
-        if idx % 100 == 0:
+        if ix % 100 == 0:
             plt.scatter(data[:,0], data[:,1])
             plt.title("t="+str(int(ts[ix])))
             plt.xlim([-1.5, 1.5])
@@ -169,7 +207,7 @@ def draw_plot(func):
             plt.show()
 
 if __name__ == "__main__":
-    func = train_field_data()
-    # func = train_main()
+    # func = train_field_data()
+    func = train_demo_main()
     draw_plot(func)
 
