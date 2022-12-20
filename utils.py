@@ -44,8 +44,23 @@ def plot(samples_0, samples_1, M):
     plt.scatter(samples_1[:, 0].cpu().numpy(), samples_1[:, 1].cpu().numpy(), alpha=0.5, label=r'$\pi_1$')
     plt.legend()
     plt.tight_layout()
+    # plt.savefig("./figs/raw_data.png")
+    # plt.close()
     return fig
 
+def sample_plot(samples_0, samples_1, M, outputname):
+    fig = plt.figure(figsize=(4,4))
+    plt.xlim(-M,M)
+    plt.ylim(-M,M)
+    plt.title(r'Samples from $\pi_0$ and $\pi_1$')
+    plt.scatter(samples_0[:, 0].cpu().numpy(), samples_0[:, 1].cpu().numpy(), alpha=0.5, label=r'$\pi_0$')
+    plt.scatter(samples_1[:, 0].cpu().numpy(), samples_1[:, 1].cpu().numpy(), alpha=0.5, label=r'$\pi_1$')
+    plt.legend()
+    plt.tight_layout()
+    output_file_name = outputname+'.png'
+    plt.savefig("./figs/"+output_file_name)
+    plt.close()
+    return fig
 
 def index_sampler(sample_size, sample_scope):
     sample_ind = torch.randint(low=sample_scope[0], high=sample_scope[1], size=sample_size) 
@@ -54,23 +69,53 @@ def index_sampler(sample_size, sample_scope):
 def save_model():
     pass
 
-def save_sif_sample_data(z_t_samples, x0, ts):
+def save_sif_sample_data(z_t_samples, x0, ts, outfile):
     for ix, data in tqdm(enumerate(z_t_samples.detach().cpu())):
-        fig = plot(x0, data, M=2.)
-        plt.savefig("./figs/p_{0}.png".format(ix), dpi=60)
+        fig = plot(x0, data, M=10.)
+        plt.savefig(outfile+"/p_{0}.png".format(ix), dpi=60)
         plt.close()
 
     fig = plt.figure()
     ims = []
     for i in range(ts.shape[0]):
-        img = cv2.imread("./figs/p_{0}.png".format(i))
+        img = cv2.imread(outfile+"/p_{0}.png".format(i))
         (r, g, b) = cv2.split(img)
         img = cv2.merge([b,g,r])
         im = plt.imshow(img, animated=True)
         ims.append([im])
     ani = animation.ArtistAnimation(fig, artists=ims, interval=50)
-    ani.save("animation.gif")
+    ani.save(outfile+"/animation.gif")
 
 
+@torch.no_grad()
+def draw_plot(rectified_flow, z0, z1, outfile, M, N=None):
+    if not os.path.exists(outfile):
+        os.makedirs(outfile)
+    traj = rectified_flow.sample_ode(z0=z0, N=N)
+    plt.figure(figsize=(4,4))
+    plt.xlim(-M,M)
+    plt.ylim(-M,M)
 
+    # plt.scatter(z1[:, 0].cpu().numpy(), z1[:, 1].cpu().numpy(), label=r'$\pi_1$', alpha=0.15)
+    plt.scatter(traj[0][:, 0].cpu().numpy(), traj[0][:, 1].cpu().numpy(), label=r'$\pi_0$', alpha=0.15)
+    plt.scatter(traj[-1][:, 0].cpu().numpy(), traj[-1][:, 1].cpu().numpy(), label='Generated', alpha=0.15)
+    plt.legend()
+    plt.title('Distribution')
+    plt.tight_layout()
+    plt.savefig(outfile+"/p_generate.png")
+    plt.close()
+
+    traj_particles = torch.stack(traj)
+    traj_particles = traj_particles.detach().clone().cpu()
+    plt.figure(figsize=(4,4))
+    plt.xlim(-M,M)
+    plt.ylim(-M,M)
+    plt.axis('equal')
+    for i in range(30):
+        plt.plot(traj_particles[:, i, 0], traj_particles[:, i, 1])
+    plt.title('Transport Trajectory')
+    plt.tight_layout()
+    plt.savefig(outfile+"/p_traj.png")
+    plt.close()
+    return traj
 
