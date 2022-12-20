@@ -1,0 +1,16 @@
+0it [00:00, ?it/s]
+0it [00:00, ?it/s][A10it [00:00, 106.72it/s]
+
+0it [00:00, ?it/s][A10it [00:00, 115.82it/s]
+2it [00:00, 11.05it/s]2it [00:00, 11.04it/s]
+  0%|          | 0/1001 [00:00<?, ?it/s]  0%|          | 0/1001 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "train.py", line 394, in <module>
+    train_dataloader_main(samples_00, samples_11, out_file2)
+  File "train.py", line 192, in train_dataloader_main
+    pred = rectified_flow.model(batch_xt, time_p)
+  File "/opt/conda/lib/python3.8/site-packages/torch/nn/modules/module.py", line 1130, in _call_impl
+    return forward_call(*input, **kwargs)
+  File "/data/users/zhen/flow_demo_generative_model/model.py", line 31, in forward
+    inputs = torch.cat([x_input, t], dim=1)
+RuntimeError: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu! (when checking argument for argument tensors in method wrapper_cat)

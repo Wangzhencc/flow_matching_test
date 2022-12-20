@@ -170,25 +170,27 @@ def train_main():
     return func
 
 
-def train_dataloader_main():
+def train_dataloader_main(samples_00, samples_11, out_file2):
     setup_seed(42)
     time_delta_num = 100
     target_sample_num = 100
-    raw_sample_num = 100
+    raw_sample_num = 1000
     batch_size = 1280
     niter = 1000
 
     vector_field_datasets = ops_vertor_field_dataset(time_delta_num, target_sample_num, raw_sample_num)
     dataloader = DataLoader(vector_field_datasets, batch_size=batch_size, shuffle=True)
 
-    rectified_flow_1 = RectifiedFlow(model=MLP(2, hidden_num=128), num_steps=100)
-    optimizer = torch.optim.Adam(rectified_flow_1.model.parameters(), lr=5e-3)
+    rectified_flow = RectifiedFlow(model=MLP(2, hidden_num=128), num_steps=100)
+    optimizer = torch.optim.Adam(rectified_flow.model.parameters(), lr=5e-3)
 
     loss_curve = []
     loss_meter = RunningAverageMeter()
     for i in tqdm(range(niter+1)):
         for step1, (time_p, batch_xt, batch_vt) in enumerate(dataloader):
             optimizer.zero_grad()
+            time_p = time_p.unsqueeze(1).type_as(batch_xt).to(device)
+            batch_xt = batch_xt.to(device)
             pred = rectified_flow.model(batch_xt, time_p)
             loss = (batch_vt - pred).view(pred.shape[0], -1).abs().pow(2).sum(dim=1)
             loss = loss.mean()
@@ -200,6 +202,7 @@ def train_dataloader_main():
             if i % 100 == 0:
                 print('Iter: {}, running avg loss: {:.4f}'.format(i, loss_meter.avg))
     
+    draw_plot(rectified_flow, z0=samples_00, z1=samples_11, outfile=out_file2, M = 2,  N=100)   
     return rectified_flow, loss_curve
 
 def train_rectified_flow(rectified_flow, optimizer, pairs, batchsize, niter):
@@ -367,8 +370,8 @@ if __name__ == "__main__":
     # func = train_demo_main()
     # func = train_main()
     batch_size = 4096
-    outputname = 'checkboard_point2_2'
-    out_file2 = 'figs/checkboard_point2_2'
+    outputname = 'circle_point2_3'
+    out_file2 = 'figs/circle_point_test_3'
     out_file3 = 'figs/checkboard_point3_2'
     out_file4 = 'figs/checkboard_point4_2'
     # samples_1, samples_0 = get_checkboard_raw_data(outputname)
@@ -386,5 +389,8 @@ if __name__ == "__main__":
     # rectified_flow_1 = train_with_rec_flow(samples_0, samples_1, samples_00, samples_11)
     # rectified_flow_2 = re_train_with_rec_flow(rectified_flow_1, samples_0, samples_1, samples_00, samples_11, out_file3)
     # re_train_with_rec_flow(rectified_flow_2, samples_0, samples_1, samples_00, samples_11, out_file4)
- 
-    train_dataloader_main()
+   
+
+    samples_11, samples_00  = get_raw_data(outputname)
+
+    train_dataloader_main(samples_00, samples_11, out_file2)
